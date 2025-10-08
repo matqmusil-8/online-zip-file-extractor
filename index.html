@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Online ZIP Extractor 2.0</title>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(180deg, #e3f2fd, #ffffff);
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px;
+    }
+    h1 {
+      color: #0078d4;
+      margin-bottom: 10px;
+    }
+    #dropZone {
+      border: 2px dashed #0078d4;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 600px;
+      height: 150px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #0078d4;
+      background: #f9fbfc;
+      margin-top: 20px;
+      transition: 0.3s;
+    }
+    #dropZone.dragover {
+      background: #d0ebff;
+    }
+    progress {
+      width: 100%;
+      max-width: 600px;
+      height: 20px;
+      margin: 20px 0;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+      width: 100%;
+      max-width: 600px;
+    }
+    li {
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 5px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    a {
+      color: #0078d4;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .info {
+      margin-top: 10px;
+      font-size: 0.95em;
+      color: #555;
+    }
+    button {
+      background: #0078d4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #005fa3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Online ZIP Extractor 2.0</h1>
+  <p>Nahraj nebo přetáhni ZIP soubor. Rozbalíme ho přímo v prohlížeči 👇</p>
+
+  <div id="dropZone">Přetáhni ZIP sem nebo klikni pro výběr</div>
+  <input type="file" id="fileInput" accept=".zip" hidden>
+
+  <progress id="progressBar" value="0" max="100" hidden></progress>
+  <div class="info" id="info"></div>
+
+  <button id="extractAll" hidden>⬇️ Stáhnout vše</button>
+
+  <ul id="fileList"></ul>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const progressBar = document.getElementById('progressBar');
+    const info = document.getElementById('info');
+    const fileList = document.getElementById('fileList');
+    const extractAll = document.getElementById('extractAll');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    ['dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, e => e.preventDefault());
+    });
+
+    dropZone.addEventListener('dragover', () => dropZone.classList.add('dragover'));
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', e => {
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      handleFile(file);
+    });
+
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      handleFile(file);
+    });
+
+    async function handleFile(file) {
+      if (!file || !file.name.endsWith('.zip')) {
+        alert('Prosím, nahraj ZIP soubor.');
+        return;
+      }
+
+      fileList.innerHTML = '';
+      info.textContent = '';
+      progressBar.hidden = false;
+      progressBar.value = 0;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(arrayBuffer);
+
+      const files = Object.entries(zip.files);
+      let total = files.length;
+      let count = 0;
+      let totalSize = 0;
+
+      for (const [name, entry] of files) {
+        totalSize += entry._data && entry._data.uncompressedSize || 0;
+      }
+
+      info.textContent = `Souborů: ${total} | Velikost: ${(totalSize / 1024).toFixed(1)} KB`;
+
+      for (const [fileName, zipEntry] of files) {
+        if (zipEntry.dir) continue;
+        const blob = await zipEntry.async('blob');
+        const url = URL.createObjectURL(blob);
+        const li = document.createElement('li');
+        li.innerHTML = `<a href="${url}" download="${fileName}">${fileName}</a>`;
+        fileList.appendChild(li);
+
+        count++;
+        progressBar.value = Math.round((count / total) * 100);
+      }
+
+      progressBar.hidden = true;
+      extractAll.hidden = false;
+
+      extractAll.onclick = async () => {
+        for (const [fileName, zipEntry] of files) {
+          if (zipEntry.dir) continue;
+          const blob = await zipEntry.async('blob');
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          a.click();
+        }
+      };
+    }
+  </script>
+</body>
+</html>
